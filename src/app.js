@@ -30,10 +30,28 @@ const allowedOrigins = (
 
 const isProduction = process.env.NODE_ENV === "production";
 
+// Shared origin checker — works with credentials in both dev & prod
+const checkOrigin = (origin, callback) => {
+  // Allow requests with no origin (mobile apps, curl, server-to-server)
+  if (!origin) return callback(null, true);
+
+  if (!isProduction) {
+    // Allow everything in development
+    return callback(null, true);
+  }
+
+  if (allowedOrigins.includes(origin)) {
+    return callback(null, true);
+  }
+
+  console.warn("CORS blocked origin:", origin);
+  callback(new Error(`Origin ${origin} not allowed by CORS`));
+};
+
 // Initialize Socket.IO
 const io = new Server(httpServer, {
   cors: {
-    origin: isProduction ? allowedOrigins : "*",
+    origin: checkOrigin,
     methods: ["GET", "POST"],
     credentials: true,
   },
@@ -48,22 +66,7 @@ app.set("io", io);
 // CORS — production: whitelist only; development: allow all
 app.use(
   cors({
-    origin: function (origin, callback) {
-      // Allow requests with no origin (mobile apps, curl, server-to-server)
-      if (!origin) return callback(null, true);
-
-      if (!isProduction) {
-        // Allow everything in development
-        return callback(null, true);
-      }
-
-      if (allowedOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-        console.warn("CORS blocked origin:", origin);
-        callback(new Error(`Origin ${origin} not allowed by CORS`));
-      }
-    },
+    origin: checkOrigin,
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
